@@ -1,0 +1,170 @@
+﻿<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TSN Todo App</title>
+    <style>
+        /* Простые стили для удобного отображения */
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+            max-width: 600px;
+            margin-left: auto;
+            margin-right: auto;
+        }
+        h1 {
+            text-align: center;
+        }
+        ul {
+            list-style: none;
+            padding: 0;
+        }
+        li {
+            padding: 10px;
+            border: 1px solid #ccc;
+            margin-bottom: 10px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        input, button {
+            padding: 5px;
+            margin: 5px;
+        }
+        .completed {
+            text-decoration: line-through;
+            color: gray;
+        }
+        .error {
+            color: red;
+            text-align: center;
+        }
+    </style>
+</head>
+<body>
+    <h1>Список задач</h1>
+
+    <!-- Форма для создания/обновления задачи -->
+    <div>
+        <input type="text" id="taskDescription" placeholder="Введите задачу">
+        <button onclick="createTask()">Добавить</button>
+    </div>
+
+    <!-- Список задач -->
+    <ul id="taskList"></ul>
+
+    <!-- Сообщение об ошибке -->
+    <p id="errorMessage" class="error"></p>
+
+    <script>
+        // Базовый URL API
+        const API_URL = 'http://localhost:8080/api/tasks';
+
+        // Функция для очистки сообщения об ошибке
+        function clearError() {
+            document.getElementById('errorMessage').textContent = '';
+        }
+
+        // Функция для отображения ошибки
+        function showError(message) {
+            document.getElementById('errorMessage').textContent = message;
+        }
+
+        // Функция для получения и отображения всех задач
+        function fetchTasks() {
+            fetch(API_URL)
+                .then(response => {
+                    if (!response.ok) throw new Error('Ошибка при загрузке задач');
+                    return response.json();
+                })
+                .then(tasks => {
+                    const taskList = document.getElementById('taskList');
+                    taskList.innerHTML = ''; // Очищаем список
+                    tasks.forEach(task => {
+                        const li = document.createElement('li');
+                        li.innerHTML = `
+                            <span class="${task.completed ? 'completed' : ''}">
+                                ${task.description}
+                            </span>
+                            <div>
+                                <button onclick="toggleTask(${task.id}, ${!task.completed})">
+                                    ${task.completed ? 'Отменить' : 'Выполнить'}
+                                </button>
+                                <button onclick="deleteTask(${task.id})">Удалить</button>
+                            </div>
+                        `;
+                        taskList.appendChild(li);
+                    });
+                })
+                .catch(error => showError(error.message));
+        }
+
+        // Функция для создания новой задачи
+        function createTask() {
+            const description = document.getElementById('taskDescription').value;
+            if (!description) {
+                showError('Введите описание задачи');
+                return;
+            }
+            clearError();
+            fetch(API_URL, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ description, completed: false })
+            })
+                .then(response => {
+                    if (!response.ok) throw new Error('Ошибка при создании задачи');
+                    return response.json();
+                })
+                .then(() => {
+                    document.getElementById('taskDescription').value = ''; // Очищаем поле
+                    fetchTasks(); // Обновляем список
+                })
+                .catch(error => showError(error.message));
+        }
+
+        // Функция для изменения статуса задачи (выполнена/не выполнена)
+        function toggleTask(id, completed) {
+            clearError();
+            fetch(`${API_URL}/${id}`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ description: getTaskDescription(id), completed })
+            })
+                .then(response => {
+                    if (!response.ok) throw new Error('Ошибка при обновлении задачи');
+                    fetchTasks(); // Обновляем список
+                })
+                .catch(error => showError(error.message));
+        }
+
+        // Функция для получения описания задачи (для PUT-запроса)
+        function getTaskDescription(id) {
+            const tasks = document.querySelectorAll('#taskList li span');
+            for (let task of tasks) {
+                if (task.parentElement.querySelector('button').onclick.toString().includes(id)) {
+                    return task.textContent.trim();
+                }
+            }
+            return '';
+        }
+
+        // Функция для удаления задачи
+        function deleteTask(id) {
+            clearError();
+            fetch(`${API_URL}/${id}`, {
+                method: 'DELETE'
+            })
+                .then(response => {
+                    if (!response.ok) throw new Error('Ошибка при удалении задачи');
+                    fetchTasks(); // Обновляем список
+                })
+                .catch(error => showError(error.message));
+        }
+
+        // Загружаем задачи при загрузке страницы
+        window.onload = fetchTasks;
+    </script>
+</body>
+</html>
